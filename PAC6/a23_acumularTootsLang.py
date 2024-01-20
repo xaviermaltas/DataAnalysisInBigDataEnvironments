@@ -1,5 +1,6 @@
 # a23_acumularTootsLang.py
 # python3 a23_acumularTootsLang.py
+# This code accumulates counts continuously
 
 import findspark
 findspark.init()
