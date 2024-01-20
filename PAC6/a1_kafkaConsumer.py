@@ -1,4 +1,6 @@
-#START <FILL IN>
+# a1_kafkaConsumer.py
+# python3 a1_kafkaConsumer.py
+
 # Create a consumer that subscribes to the Kafka topic and digest the toots
 from tokenize import group
 from kafka import KafkaConsumer
