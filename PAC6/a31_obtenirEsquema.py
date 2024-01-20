@@ -16,7 +16,7 @@ sc = SparkContext(conf=conf)
 sc.setLogLevel("ERROR")
 
 # Initialize Spark Session for Structured Streaming
-app_name = "activity3_1" + <FILLIN> # Replace with your Spark app name must include the username of the members of the group
+app_name = "activity3_1_xmaltast"  # Replace with your Spark app name must include the username of the members of the group
 
 spark = SparkSession \
     .builder \
@@ -24,8 +24,8 @@ spark = SparkSession \
     .getOrCreate()
 
 # Define Kafka parameters
-kafka_topic = <FILLIN>
-kafka_bootstrap_servers = <FILLIN>  # Replace with your Kafka bootstrap servers
+kafka_topic = 'mastodon_toots'
+kafka_bootstrap_servers = 'Cloudera02:9092,Cloudera03:9092'  # Replace with your Kafka bootstrap servers
 
 # Read a small batch of data from Kafka for schema inference!
 batch_df = spark \
@@ -34,7 +34,19 @@ batch_df = spark \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("subscribe", kafka_topic) \
     .option("startingOffsets", "earliest") \
-    .option("endingOffsets", "{\"" + kafka_topic + "\":{\"0\":10}}") \
+    .load()
+
+# Determine the ending offset dynamically based on the available data
+ending_offset = batch_df.selectExpr("max(CAST(offset AS LONG)) as max_offset").collect()[0]["max_offset"]
+
+# Use the dynamically determined ending offset for the batch read
+batch_df = spark \
+    .read \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
+    .option("subscribe", kafka_topic) \
+    .option("startingOffsets", "earliest") \
+    .option("endingOffsets", "{\"" + kafka_topic + "\":{\"0\":" + str(ending_offset) + "}}") \
     .load()
 
 # Infer schema
@@ -46,19 +58,26 @@ toots = spark \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("subscribe", kafka_topic) \
-    .option("startingOffsets", <FILLIN>) \
+    .option("startingOffsets", "latest") \
     .load()
 
-# Parse the value column as JSON and apply the infered schema. Then select the columns we need.
+# Parse the value column as JSON and apply the inferred schema. Then select the columns we need.
 toots_df = toots\
-    .select(from_json(col("value").cast("string"), schema).alias("parsed_value"))\
-    .select(<FILLIN>)
+    .select(from_json(col("value").cast("string"), schema).alias("parsed_value")) \
+    .select(
+        col("parsed_value.id").alias("id"),
+        col("parsed_value.created_at").alias("created_at"),
+        col("parsed_value.content").alias("content"),
+        col("parsed_value.language").alias("language"),
+        col("parsed_value.account.username").alias("USERNAME"),
+        col("parsed_value.account.followers_count").alias("followers_count")
+    )
 
 try:
     # Open stream to console (you need to execute it in a terminal to see the output)
     query = toots_df \
             .writeStream \
-            .outputMode(<FILLIN>) \
+            .outputMode("append") \
             .format("console")\
             .start()
 
